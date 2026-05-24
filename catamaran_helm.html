@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Catamaran Helm</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+<style>
+  :root{
+    --bg:#0a0e14;
+    --panel:#111823;
+    --panel-2:#0d1420;
+    --line:#1e2a3a;
+    --ink:#c8d6e5;
+    --ink-dim:#5a6b80;
+    --accent:#00e5b0;
+    --accent-dim:#0a7a62;
+    --warn:#ff8a3d;
+    --danger:#ff3b5c;
+    --ok:#00e5b0;
+    --grid:#16202e;
+    --mono:'DM Mono','SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:var(--mono);
+    background:
+      radial-gradient(900px 500px at 80% -10%, #102031 0%, transparent 60%),
+      radial-gradient(700px 400px at -10% 110%, #0d1a17 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    overflow:hidden;
+    display:flex;flex-direction:column;
+    user-select:none;
+  }
+  /* faint grid texture */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;opacity:.4;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:34px 34px;
+    mask-image:radial-gradient(circle at 50% 40%,#000 0%,transparent 80%);
+  }
+
+  header{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(20,30,44,.6),transparent);
+    z-index:2;
+  }
+  .logo{
+    font-weight:500;letter-spacing:3px;font-size:13px;text-transform:uppercase;
+    color:var(--ink);
+  }
+  .logo b{color:var(--accent);font-weight:500}
+  .link-state{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px}
+  .led{width:9px;height:9px;border-radius:50%;background:var(--danger);box-shadow:0 0 8px var(--danger);transition:.2s}
+  .led.ok{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  .led.warn{background:var(--warn);box-shadow:0 0 10px var(--warn)}
+
+  main{flex:1;display:flex;flex-direction:column;gap:12px;padding:12px;overflow:auto;z-index:1}
+
+  .row{display:flex;gap:12px}
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:14px;padding:12px;
+    position:relative;
+  }
+  .card .lbl{
+    font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-dim);
+    margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;
+  }
+
+  /* Telemetry strip */
+  .tlm{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+  .tlm .cell{background:linear-gradient(180deg,var(--panel),var(--panel-2));padding:10px 8px;text-align:center}
+  .tlm .k{font-size:9px;letter-spacing:1.5px;color:var(--ink-dim);text-transform:uppercase}
+  .tlm .v{font-size:18px;margin-top:3px;color:var(--accent);font-weight:500}
+  .tlm .u{font-size:10px;color:var(--ink-dim)}
+
+  /* Joystick */
+  .helm{flex:1;display:flex;flex-direction:column;align-items:center}
+  #pad{
+    touch-action:none;width:100%;max-width:340px;aspect-ratio:1;
+    border-radius:18px;background:
+      radial-gradient(circle at 50% 50%, #0e1622 0%, #0a121c 70%);
+    border:1px solid var(--line);position:relative;overflow:hidden;
+  }
+  #pad canvas{position:absolute;inset:0;width:100%;height:100%}
+  .pad-hint{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:9px;letter-spacing:2px;color:var(--ink-dim);text-transform:uppercase}
+
+  .readout{display:flex;gap:12px;width:100%;max-width:340px;margin-top:10px}
+  .readout .ro{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+  .readout .k{font-size:9px;letter-spacing:1.5px;color:var(--ink-dim);text-transform:uppercase}
+  .readout .v{font-size:20px;margin-top:2px;font-weight:500}
+  .v.pos{color:var(--accent)} .v.neg{color:var(--warn)}
+
+  /* Map */
+  #map{flex:1;min-height:150px;border-radius:14px;background:var(--panel-2);border:1px solid var(--line);position:relative;overflow:hidden}
+  #map canvas{position:absolute;inset:0;width:100%;height:100%}
+  .map-coords{position:absolute;top:8px;left:10px;font-size:10px;color:var(--ink-dim);letter-spacing:1px}
+
+  /* Stop */
+  #stop{
+    width:100%;padding:18px;border:none;border-radius:14px;cursor:pointer;
+    background:linear-gradient(180deg,#2a0e16,#1a0a10);
+    color:var(--danger);border:1px solid #3a1420;
+    font-family:var(--mono);font-size:18px;font-weight:500;letter-spacing:4px;text-transform:uppercase;
+    transition:.12s;
+  }
+  #stop:active{background:var(--danger);color:#fff;transform:scale(.99);box-shadow:0 0 30px rgba(255,59,92,.5)}
+
+  /* Connection sheet */
+  .sheet-bg{position:fixed;inset:0;background:rgba(5,8,12,.82);backdrop-filter:blur(6px);z-index:10;display:flex;align-items:flex-end;justify-content:center}
+  .sheet-bg.hidden{display:none}
+  .sheet{width:100%;max-width:480px;background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;padding:18px;animation:rise .25s ease}
+  @keyframes rise{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .sheet h2{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;font-weight:500}
+  .field{margin-bottom:11px}
+  .field label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--ink-dim);text-transform:uppercase;margin-bottom:5px}
+  .field input{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
+    padding:11px;color:var(--ink);font-family:var(--mono);font-size:14px;
+  }
+  .field input:focus{outline:none;border-color:var(--accent-dim)}
+  .two{display:flex;gap:10px}.two .field{flex:1}
+  .btn{
+    width:100%;margin-top:6px;padding:14px;border:none;border-radius:11px;cursor:pointer;
+    background:linear-gradient(180deg,var(--accent),var(--accent-dim));color:#04120e;
+    font-family:var(--mono);font-weight:500;font-size:14px;letter-spacing:2px;text-transform:uppercase;
+  }
+  .btn:active{transform:scale(.99)}
+  .hint{font-size:10px;color:var(--ink-dim);line-height:1.5;margin-top:10px}
+  .gear{background:none;border:1px solid var(--line);color:var(--ink-dim);border-radius:8px;padding:4px 9px;font-family:var(--mono);font-size:10px;letter-spacing:1px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⛵ CATAMARAN <b>HELM</b></div>
+  <div class="link-state">
+    <span id="linkText">OFFLINE</span>
+    <span class="led" id="led"></span>
+    <button class="gear" id="gearBtn">CFG</button>
+  </div>
+</header>
+
+<main>
+  <!-- Telemetry -->
+  <div class="row">
+    <div class="tlm">
+      <div class="cell"><div class="k">Курс</div><div class="v"><span id="tCourse">--</span><span class="u">°</span></div></div>
+      <div class="cell"><div class="k">Заряд</div><div class="v"><span id="tBatt">--</span><span class="u">%</span></div></div>
+      <div class="cell"><div class="k">Lat</div><div class="v" style="font-size:13px"><span id="tLat">--</span></div></div>
+      <div class="cell"><div class="k">Lon</div><div class="v" style="font-size:13px"><span id="tLon">--</span></div></div>
+    </div>
+  </div>
+
+  <!-- Joystick -->
+  <div class="card helm">
+    <div class="lbl" style="width:100%"><span>Штурвал</span><span id="hbState" style="color:var(--ink-dim)">HEARTBEAT 5 Hz</span></div>
+    <div id="pad">
+      <canvas id="padCanvas"></canvas>
+      <div class="pad-hint">Тяга ↕ · Поворот ↔</div>
+    </div>
+    <div class="readout">
+      <div class="ro"><div class="k">Тяга</div><div class="v" id="roThr">0</div></div>
+      <div class="ro"><div class="k">Поворот</div><div class="v" id="roSteer">0</div></div>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div class="card" style="display:flex;flex-direction:column">
+    <div class="lbl"><span>Позиция</span><span id="mapAge" style="color:var(--ink-dim)">нет данных</span></div>
+    <div id="map">
+      <canvas id="mapCanvas"></canvas>
+      <div class="map-coords" id="mapCoords"></div>
+    </div>
+  </div>
+
+  <button id="stop">⏹ СТОП</button>
+</main>
+
+<!-- Connection config sheet -->
+<div class="sheet-bg" id="sheet">
+  <div class="sheet">
+    <h2>Подключение к брокеру</h2>
+    <div class="field">
+      <label>Хост брокера (WebSocket)</label>
+      <input id="cHost" value="broker.hivemq.com">
+    </div>
+    <div class="two">
+      <div class="field"><label>Порт WS</label><input id="cPort" value="8000" inputmode="numeric"></div>
+      <div class="field"><label>Путь</label><input id="cPath" value="/mqtt"></div>
+    </div>
+    <div class="field">
+      <label>TLS (wss) — нужно если страница на https</label>
+      <input id="cTls" value="нет — ws" readonly style="cursor:pointer">
+    </div>
+    <div class="field">
+      <label>Префикс топиков (секретный)</label>
+      <input id="cTopic" value="catamaran/9f3a">
+    </div>
+    <div class="two">
+      <div class="field"><label>Логин (опц.)</label><input id="cUser" placeholder="—"></div>
+      <div class="field"><label>Пароль (опц.)</label><input id="cPass" type="password" placeholder="—"></div>
+    </div>
+    <button class="btn" id="connectBtn">Подключиться</button>
+    <div class="hint">
+      Команды → <code id="hintCmd">catamaran/9f3a/command</code><br>
+      Телеметрия ← <code id="hintTlm">catamaran/9f3a/telemetry</code><br>
+      Публичный хост broker.hivemq.com: ws-порт 8000, wss-порт 8884. Для https-страницы выбери wss.
+      На публичном брокере любой со знанием топика может управлять — для реального использования брокер с авторизацией и секретный префикс.
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ Конфиг и состояние ============ */
+const cfg = {
+  host:'broker.hivemq.com', port:8000, path:'/mqtt', tls:false,
+  topicBase:'catamaran/9f3a', user:'', pass:''
+};
+let client=null, connected=false;
+let thr=0, steer=0;          // -100..100
+let seq=0;
+let lastRx=0;                // время последней телеметрии
+let boatTrack=[];            // история точек [{lat,lon}]
+let lastTlm=null;
+
+const TOPIC = ()=>({cmd:cfg.topicBase+'/command', tlm:cfg.topicBase+'/telemetry'});
+
+/* ============ DOM ============ */
+const $=id=>document.getElementById(id);
+const led=$('led'), linkText=$('linkText');
+const sheet=$('sheet');
+
+$('gearBtn').onclick=()=>sheet.classList.remove('hidden');
+
+/* TLS toggle (readonly input acts as switch) */
+$('cTls').onclick=()=>{
+  cfg.tls=!cfg.tls;
+  $('cTls').value=cfg.tls?'да — wss':'нет — ws';
+  if(cfg.tls && $('cPort').value==='8000') $('cPort').value='8884';
+  if(!cfg.tls && $('cPort').value==='8884') $('cPort').value='8000';
+};
+
+/* live topic hint */
+function refreshHints(){
+  $('hintCmd').textContent=$('cTopic').value+'/command';
+  $('hintTlm').textContent=$('cTopic').value+'/telemetry';
+}
+$('cTopic').addEventListener('input',refreshHints);
+
+/* ============ Подключение MQTT ============ */
+$('connectBtn').onclick=()=>{
+  cfg.host=$('cHost').value.trim();
+  cfg.port=parseInt($('cPort').value)||8000;
+  cfg.path=$('cPath').value.trim()||'/mqtt';
+  cfg.topicBase=$('cTopic').value.trim()||'catamaran/9f3a';
+  cfg.user=$('cUser').value.trim();
+  cfg.pass=$('cPass').value;
+  connect();
+};
+
+function setLink(state){ // 'off' | 'live' | 'stale'
+  led.className='led'+(state==='live'?' ok':state==='stale'?' warn':'');
+  linkText.textContent = state==='live'?'LINK OK':state==='stale'?'НЕТ ТЕЛЕМЕТРИИ':'OFFLINE';
+}
+
+function connect(){
+  try{ if(client && connected) client.disconnect(); }catch(e){}
+  const cid='helm-'+Math.random().toString(16).slice(2,8);
+  client=new Paho.MQTT.Client(cfg.host, cfg.port, cfg.path, cid);
+
+  client.onConnectionLost=()=>{
+    connected=false; setLink('off');
+  };
+  client.onMessageArrived=(m)=>{
+    if(m.destinationName===TOPIC().tlm){
+      try{
+        const d=JSON.parse(m.payloadString);
+        lastTlm=d; lastRx=Date.now();
+        updateTelemetry(d);
+      }catch(e){}
+    }
+  };
+
+  const opts={
+    useSSL:cfg.tls,
+    timeout:6,
+    keepAliveInterval:15,
+    cleanSession:true,
+    onSuccess:()=>{
+      connected=true; setLink('stale');
+      client.subscribe(TOPIC().tlm);
+      sheet.classList.add('hidden');
+    },
+    onFailure:(e)=>{
+      connected=false; setLink('off');
+      alert('Не удалось подключиться: '+(e.errorMessage||e));
+    }
+  };
+  if(cfg.user) opts.userName=cfg.user;
+  if(cfg.pass) opts.password=cfg.pass;
+  client.connect(opts);
+}
+
+/* ============ Отправка команд (heartbeat 5 Гц) ============ */
+function publishCmd(){
+  if(!connected) return;
+  seq=(seq+1)%100000;
+  const payload=JSON.stringify({seq, t:Math.round(thr), s:Math.round(steer)});
+  const msg=new Paho.MQTT.Message(payload);
+  msg.destinationName=TOPIC().cmd;
+  try{ client.send(msg); }catch(e){ connected=false; setLink('off'); }
+}
+setInterval(publishCmd, 200); // 5 раз в секунду — heartbeat
+
+/* ============ Аварийный стоп ============ */
+$('stop').addEventListener('click', ()=>{
+  thr=0; steer=0; resetStick();
+  // тройная отправка нуля для надёжности
+  for(let i=0;i<3;i++) setTimeout(publishCmd, i*40);
+});
+
+/* ============ Джойстик ============ */
+const pad=$('pad'), pc=$('padCanvas'), pctx=pc.getContext('2d');
+let stickX=0, stickY=0; // -1..1
+let dragging=false;
+
+function sizePad(){
+  const r=pad.getBoundingClientRect();
+  pc.width=r.width*devicePixelRatio; pc.height=r.height*devicePixelRatio;
+  pctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  drawPad();
+}
+function drawPad(){
+  const w=pc.width/devicePixelRatio, h=pc.height/devicePixelRatio;
+  const cx=w/2, cy=h/2, R=Math.min(w,h)/2-14;
+  pctx.clearRect(0,0,w,h);
+  // crosshair rings
+  pctx.strokeStyle='#1a2636'; pctx.lineWidth=1;
+  for(let i=1;i<=3;i++){pctx.beginPath();pctx.arc(cx,cy,R*i/3,0,7);pctx.stroke();}
+  pctx.beginPath();pctx.moveTo(cx-R,cy);pctx.lineTo(cx+R,cy);
+  pctx.moveTo(cx,cy-R);pctx.lineTo(cx,cy+R);pctx.stroke();
+  // knob
+  const kx=cx+stickX*R, ky=cy+stickY*R;
+  // trail line
+  pctx.strokeStyle='rgba(0,229,176,.35)';pctx.lineWidth=3;
+  pctx.beginPath();pctx.moveTo(cx,cy);pctx.lineTo(kx,ky);pctx.stroke();
+  // knob glow
+  const g=pctx.createRadialGradient(kx,ky,2,kx,ky,30);
+  g.addColorStop(0,'rgba(0,229,176,.9)');g.addColorStop(1,'rgba(0,229,176,0)');
+  pctx.fillStyle=g;pctx.beginPath();pctx.arc(kx,ky,30,0,7);pctx.fill();
+  pctx.fillStyle='#00e5b0';pctx.beginPath();pctx.arc(kx,ky,13,0,7);pctx.fill();
+  pctx.fillStyle='#04120e';pctx.beginPath();pctx.arc(kx,ky,5,0,7);pctx.fill();
+}
+function setStickFromEvent(e){
+  const r=pad.getBoundingClientRect();
+  const px=(e.clientX-r.left)/r.width*2-1;
+  const py=(e.clientY-r.top)/r.height*2-1;
+  let dx=px, dy=py;
+  const mag=Math.hypot(dx,dy);
+  if(mag>1){dx/=mag;dy/=mag;}
+  stickX=dx; stickY=dy;
+  steer = dx*100;        // вправо = +поворот
+  thr   = -dy*100;       // вверх = +тяга
+  if(Math.abs(steer)<8) steer=0;
+  if(Math.abs(thr)<8) thr=0;
+  $('roThr').textContent=Math.round(thr);
+  $('roSteer').textContent=Math.round(steer);
+  $('roThr').className='v '+(thr>=0?'pos':'neg');
+  $('roSteer').className='v '+(steer>=0?'pos':'neg');
+  drawPad();
+}
+function resetStick(){
+  stickX=0;stickY=0;thr=0;steer=0;
+  $('roThr').textContent='0';$('roSteer').textContent='0';
+  $('roThr').className='v';$('roSteer').className='v';
+  drawPad();
+}
+function ptr(e){ return e.touches?e.touches[0]:e; }
+pad.addEventListener('pointerdown',e=>{dragging=true;setStickFromEvent(e);pad.setPointerCapture(e.pointerId);});
+pad.addEventListener('pointermove',e=>{if(dragging)setStickFromEvent(e);});
+pad.addEventListener('pointerup',e=>{dragging=false;resetStick();});
+pad.addEventListener('pointercancel',e=>{dragging=false;resetStick();});
+
+/* ============ Телеметрия + карта ============ */
+function updateTelemetry(d){
+  if(d.course!=null) $('tCourse').textContent=d.course;
+  if(d.batt!=null)   $('tBatt').textContent=d.batt;
+  if(d.lat!=null)    $('tLat').textContent=(+d.lat).toFixed(5);
+  if(d.lon!=null)    $('tLon').textContent=(+d.lon).toFixed(5);
+  if(d.lat!=null && d.lon!=null && (d.lat||d.lon)){
+    const last=boatTrack[boatTrack.length-1];
+    if(!last || last.lat!==+d.lat || last.lon!==+d.lon){
+      boatTrack.push({lat:+d.lat,lon:+d.lon});
+      if(boatTrack.length>200) boatTrack.shift();
+    }
+  }
+  drawMap();
+}
+
+const map=$('map'), mc=$('mapCanvas'), mctx=mc.getContext('2d');
+function sizeMap(){
+  const r=map.getBoundingClientRect();
+  mc.width=r.width*devicePixelRatio; mc.height=r.height*devicePixelRatio;
+  mctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  drawMap();
+}
+function drawMap(){
+  const w=mc.width/devicePixelRatio, h=mc.height/devicePixelRatio;
+  mctx.clearRect(0,0,w,h);
+  // grid
+  mctx.strokeStyle='#15202e';mctx.lineWidth=1;
+  for(let x=0;x<w;x+=28){mctx.beginPath();mctx.moveTo(x,0);mctx.lineTo(x,h);mctx.stroke();}
+  for(let y=0;y<h;y+=28){mctx.beginPath();mctx.moveTo(0,y);mctx.lineTo(w,y);mctx.stroke();}
+  if(boatTrack.length===0){
+    mctx.fillStyle='#3a4a5e';mctx.font='11px monospace';mctx.textAlign='center';
+    mctx.fillText('ожидание GPS…', w/2, h/2);
+    return;
+  }
+  // bounds
+  let lats=boatTrack.map(p=>p.lat), lons=boatTrack.map(p=>p.lon);
+  let minLa=Math.min(...lats),maxLa=Math.max(...lats);
+  let minLo=Math.min(...lons),maxLo=Math.max(...lons);
+  const padg=0.0003;
+  minLa-=padg;maxLa+=padg;minLo-=padg;maxLo+=padg;
+  const sx=v=>(v-minLo)/(maxLo-minLo||1)*(w-40)+20;
+  const sy=v=>h-((v-minLa)/(maxLa-minLa||1)*(h-40)+20);
+  // track
+  mctx.strokeStyle='rgba(0,229,176,.5)';mctx.lineWidth=2;mctx.beginPath();
+  boatTrack.forEach((p,i)=>{const X=sx(p.lon),Y=sy(p.lat);i?mctx.lineTo(X,Y):mctx.moveTo(X,Y);});
+  mctx.stroke();
+  // boat
+  const b=boatTrack[boatTrack.length-1];
+  const bx=sx(b.lon),by=sy(b.lat);
+  const course=(lastTlm&&lastTlm.course!=null)?lastTlm.course:0;
+  mctx.save();mctx.translate(bx,by);mctx.rotate(course*Math.PI/180);
+  mctx.fillStyle='#00e5b0';
+  mctx.beginPath();mctx.moveTo(0,-11);mctx.lineTo(7,9);mctx.lineTo(0,4);mctx.lineTo(-7,9);mctx.closePath();mctx.fill();
+  mctx.restore();
+  $('mapCoords').textContent=`${b.lat.toFixed(5)}, ${b.lon.toFixed(5)}`;
+}
+
+/* ============ Контроль живости связи ============ */
+setInterval(()=>{
+  if(!connected){ setLink('off'); return; }
+  const age=Date.now()-lastRx;
+  if(lastRx===0){ setLink('stale'); $('mapAge').textContent='нет данных'; return; }
+  if(age>6000){ setLink('stale'); }
+  else setLink('live');
+  $('mapAge').textContent = age<2000?'актуально':Math.round(age/1000)+' с назад';
+}, 500);
+
+/* ============ Init ============ */
+window.addEventListener('resize',()=>{sizePad();sizeMap();});
+sizePad(); sizeMap(); refreshHints(); setLink('off'); drawPad();
+</script>
+</body>
+</html>
