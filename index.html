@@ -15,6 +15,8 @@
     --ink-dim:#5a6b80;
     --accent:#00e5b0;
     --accent-dim:#0a7a62;
+    --aqua:#3da8ff;
+    --aqua-dim:#1c5a8c;
     --warn:#ff8a3d;
     --danger:#ff3b5c;
     --ok:#00e5b0;
@@ -34,7 +36,6 @@
     display:flex;flex-direction:column;
     user-select:none;
   }
-  /* faint grid texture */
   body::before{
     content:"";position:fixed;inset:0;pointer-events:none;opacity:.4;
     background-image:
@@ -50,10 +51,7 @@
     background:linear-gradient(180deg,rgba(20,30,44,.6),transparent);
     z-index:2;
   }
-  .logo{
-    font-weight:500;letter-spacing:3px;font-size:13px;text-transform:uppercase;
-    color:var(--ink);
-  }
+  .logo{font-weight:500;letter-spacing:3px;font-size:13px;text-transform:uppercase;color:var(--ink)}
   .logo b{color:var(--accent);font-weight:500}
   .link-state{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px}
   .led{width:9px;height:9px;border-radius:50%;background:var(--danger);box-shadow:0 0 8px var(--danger);transition:.2s}
@@ -65,8 +63,7 @@
   .row{display:flex;gap:12px}
   .card{
     background:linear-gradient(180deg,var(--panel),var(--panel-2));
-    border:1px solid var(--line);border-radius:14px;padding:12px;
-    position:relative;
+    border:1px solid var(--line);border-radius:14px;padding:12px;position:relative;
   }
   .card .lbl{
     font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-dim);
@@ -84,8 +81,7 @@
   .helm{flex:1;display:flex;flex-direction:column;align-items:center}
   #pad{
     touch-action:none;width:100%;max-width:340px;aspect-ratio:1;
-    border-radius:18px;background:
-      radial-gradient(circle at 50% 50%, #0e1622 0%, #0a121c 70%);
+    border-radius:18px;background:radial-gradient(circle at 50% 50%, #0e1622 0%, #0a121c 70%);
     border:1px solid var(--line);position:relative;overflow:hidden;
   }
   #pad canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -97,6 +93,36 @@
   .readout .v{font-size:20px;margin-top:2px;font-weight:500}
   .v.pos{color:var(--accent)} .v.neg{color:var(--warn)}
 
+  /* Pump / sampler card */
+  .pump-head{display:flex;align-items:center;gap:8px}
+  .pump-dot{width:10px;height:10px;border-radius:50%;background:var(--ink-dim);transition:.25s}
+  .pump-dot.on{background:var(--aqua);box-shadow:0 0 12px var(--aqua);animation:flow 1.2s infinite}
+  @keyframes flow{0%,100%{opacity:1}50%{opacity:.4}}
+  .pump-row{display:flex;align-items:center;gap:12px;margin-top:4px}
+  .pump-toggle{
+    flex-shrink:0;width:104px;padding:14px 0;border:1px solid var(--aqua-dim);border-radius:11px;cursor:pointer;
+    background:linear-gradient(180deg,#0d2233,#0a1a28);color:var(--aqua);
+    font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:2px;text-transform:uppercase;transition:.15s;
+  }
+  .pump-toggle.on{background:linear-gradient(180deg,var(--aqua),var(--aqua-dim));color:#04121f;box-shadow:0 0 22px rgba(61,168,255,.4)}
+  .pump-toggle:active{transform:scale(.98)}
+  .slider-wrap{flex:1}
+  .slider-top{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+  .slider-top b{color:var(--aqua);font-weight:500;font-size:14px}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:6px;
+    background:linear-gradient(90deg,var(--aqua) 0%,var(--aqua) var(--fill,50%),#1a2838 var(--fill,50%),#1a2838 100%);
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+    background:#eaf6ff;border:3px solid var(--aqua);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:22px;height:22px;border-radius:50%;background:#eaf6ff;border:3px solid var(--aqua);cursor:pointer;
+  }
+  .sampler-note{font-size:9px;color:var(--ink-dim);letter-spacing:1px;margin-top:8px;text-align:center}
+
   /* Map */
   #map{flex:1;min-height:150px;border-radius:14px;background:var(--panel-2);border:1px solid var(--line);position:relative;overflow:hidden}
   #map canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -105,32 +131,23 @@
   /* Stop */
   #stop{
     width:100%;padding:18px;border:none;border-radius:14px;cursor:pointer;
-    background:linear-gradient(180deg,#2a0e16,#1a0a10);
-    color:var(--danger);border:1px solid #3a1420;
-    font-family:var(--mono);font-size:18px;font-weight:500;letter-spacing:4px;text-transform:uppercase;
-    transition:.12s;
+    background:linear-gradient(180deg,#2a0e16,#1a0a10);color:var(--danger);border:1px solid #3a1420;
+    font-family:var(--mono);font-size:18px;font-weight:500;letter-spacing:4px;text-transform:uppercase;transition:.12s;
   }
   #stop:active{background:var(--danger);color:#fff;transform:scale(.99);box-shadow:0 0 30px rgba(255,59,92,.5)}
 
   /* Connection sheet */
   .sheet-bg{position:fixed;inset:0;background:rgba(5,8,12,.82);backdrop-filter:blur(6px);z-index:10;display:flex;align-items:flex-end;justify-content:center}
   .sheet-bg.hidden{display:none}
-  .sheet{width:100%;max-width:480px;background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;padding:18px;animation:rise .25s ease}
+  .sheet{width:100%;max-width:480px;background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;padding:18px;animation:rise .25s ease;max-height:92vh;overflow:auto}
   @keyframes rise{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
   .sheet h2{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;font-weight:500}
   .field{margin-bottom:11px}
   .field label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--ink-dim);text-transform:uppercase;margin-bottom:5px}
-  .field input{
-    width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
-    padding:11px;color:var(--ink);font-family:var(--mono);font-size:14px;
-  }
+  .field input{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px;color:var(--ink);font-family:var(--mono);font-size:14px}
   .field input:focus{outline:none;border-color:var(--accent-dim)}
   .two{display:flex;gap:10px}.two .field{flex:1}
-  .btn{
-    width:100%;margin-top:6px;padding:14px;border:none;border-radius:11px;cursor:pointer;
-    background:linear-gradient(180deg,var(--accent),var(--accent-dim));color:#04120e;
-    font-family:var(--mono);font-weight:500;font-size:14px;letter-spacing:2px;text-transform:uppercase;
-  }
+  .btn{width:100%;margin-top:6px;padding:14px;border:none;border-radius:11px;cursor:pointer;background:linear-gradient(180deg,var(--accent),var(--accent-dim));color:#04120e;font-family:var(--mono);font-weight:500;font-size:14px;letter-spacing:2px;text-transform:uppercase}
   .btn:active{transform:scale(.99)}
   .hint{font-size:10px;color:var(--ink-dim);line-height:1.5;margin-top:10px}
   .gear{background:none;border:1px solid var(--line);color:var(--ink-dim);border-radius:8px;padding:4px 9px;font-family:var(--mono);font-size:10px;letter-spacing:1px;cursor:pointer}
@@ -152,7 +169,7 @@
   <div class="row">
     <div class="tlm">
       <div class="cell"><div class="k">Курс</div><div class="v"><span id="tCourse">--</span><span class="u">°</span></div></div>
-      <div class="cell"><div class="k">Заряд</div><div class="v"><span id="tBatt">--</span><span class="u">%</span></div></div>
+      <div class="cell"><div class="k">Проба</div><div class="v" id="tPump" style="color:var(--aqua)">OFF</div></div>
       <div class="cell"><div class="k">Lat</div><div class="v" style="font-size:13px"><span id="tLat">--</span></div></div>
       <div class="cell"><div class="k">Lon</div><div class="v" style="font-size:13px"><span id="tLon">--</span></div></div>
     </div>
@@ -171,6 +188,22 @@
     </div>
   </div>
 
+  <!-- Pump / water sampler -->
+  <div class="card">
+    <div class="lbl">
+      <span class="pump-head"><span class="pump-dot" id="pumpDot"></span>Забор проб воды</span>
+      <span id="pumpPctLbl" style="color:var(--aqua)">50%</span>
+    </div>
+    <div class="pump-row">
+      <button class="pump-toggle" id="pumpBtn">Пуск</button>
+      <div class="slider-wrap">
+        <div class="slider-top"><span>Мощность насоса</span><b id="pumpVal">50</b></div>
+        <input type="range" id="pumpSlider" min="0" max="100" value="50">
+      </div>
+    </div>
+    <div class="sampler-note">Насос качает забортную воду в пробосборник, пока активен «Пуск»</div>
+  </div>
+
   <!-- Map -->
   <div class="card" style="display:flex;flex-direction:column">
     <div class="lbl"><span>Позиция</span><span id="mapAge" style="color:var(--ink-dim)">нет данных</span></div>
@@ -180,39 +213,29 @@
     </div>
   </div>
 
-  <button id="stop">⏹ СТОП</button>
+  <button id="stop">⏹ СТОП — МОТОРЫ И НАСОС</button>
 </main>
 
 <!-- Connection config sheet -->
 <div class="sheet-bg" id="sheet">
   <div class="sheet">
     <h2>Подключение к брокеру</h2>
-    <div class="field">
-      <label>Хост брокера (WebSocket)</label>
-      <input id="cHost" value="broker.hivemq.com">
-    </div>
+    <div class="field"><label>Хост брокера (WebSocket)</label><input id="cHost" value="broker.hivemq.com"></div>
     <div class="two">
       <div class="field"><label>Порт WS</label><input id="cPort" value="8000" inputmode="numeric"></div>
       <div class="field"><label>Путь</label><input id="cPath" value="/mqtt"></div>
     </div>
-    <div class="field">
-      <label>TLS (wss) — нужно если страница на https</label>
-      <input id="cTls" value="нет — ws" readonly style="cursor:pointer">
-    </div>
-    <div class="field">
-      <label>Префикс топиков (секретный)</label>
-      <input id="cTopic" value="catamaran/9f3a">
-    </div>
+    <div class="field"><label>TLS (wss) — нужно для HiveMQ Cloud / https</label><input id="cTls" value="нет — ws" readonly style="cursor:pointer"></div>
+    <div class="field"><label>Префикс топиков (секретный)</label><input id="cTopic" value="catamaran/9f3a"></div>
     <div class="two">
-      <div class="field"><label>Логин (опц.)</label><input id="cUser" placeholder="—"></div>
-      <div class="field"><label>Пароль (опц.)</label><input id="cPass" type="password" placeholder="—"></div>
+      <div class="field"><label>Логин</label><input id="cUser" placeholder="—"></div>
+      <div class="field"><label>Пароль</label><input id="cPass" type="password" placeholder="—"></div>
     </div>
     <button class="btn" id="connectBtn">Подключиться</button>
     <div class="hint">
       Команды → <code id="hintCmd">catamaran/9f3a/command</code><br>
       Телеметрия ← <code id="hintTlm">catamaran/9f3a/telemetry</code><br>
-      Публичный хост broker.hivemq.com: ws-порт 8000, wss-порт 8884. Для https-страницы выбери wss.
-      На публичном брокере любой со знанием топика может управлять — для реального использования брокер с авторизацией и секретный префикс.
+      HiveMQ Cloud: хост вида xxx.s1.eu.hivemq.cloud, TLS = да, порт 8884, путь /mqtt, логин-пароль из Access Management. Страница пульта должна быть открыта по https.
     </div>
   </div>
 </div>
@@ -225,21 +248,19 @@ const cfg = {
 };
 let client=null, connected=false;
 let thr=0, steer=0;          // -100..100
+let pumpOn=false, pumpPower=50;   // помпа: вкл/выкл + мощность 0..100
 let seq=0;
-let lastRx=0;                // время последней телеметрии
-let boatTrack=[];            // история точек [{lat,lon}]
+let lastRx=0;
+let boatTrack=[];
 let lastTlm=null;
 
 const TOPIC = ()=>({cmd:cfg.topicBase+'/command', tlm:cfg.topicBase+'/telemetry'});
-
-/* ============ DOM ============ */
 const $=id=>document.getElementById(id);
 const led=$('led'), linkText=$('linkText');
 const sheet=$('sheet');
 
 $('gearBtn').onclick=()=>sheet.classList.remove('hidden');
 
-/* TLS toggle (readonly input acts as switch) */
 $('cTls').onclick=()=>{
   cfg.tls=!cfg.tls;
   $('cTls').value=cfg.tls?'да — wss':'нет — ws';
@@ -247,7 +268,6 @@ $('cTls').onclick=()=>{
   if(!cfg.tls && $('cPort').value==='8884') $('cPort').value='8000';
 };
 
-/* live topic hint */
 function refreshHints(){
   $('hintCmd').textContent=$('cTopic').value+'/command';
   $('hintTlm').textContent=$('cTopic').value+'/telemetry';
@@ -265,7 +285,7 @@ $('connectBtn').onclick=()=>{
   connect();
 };
 
-function setLink(state){ // 'off' | 'live' | 'stale'
+function setLink(state){
   led.className='led'+(state==='live'?' ok':state==='stale'?' warn':'');
   linkText.textContent = state==='live'?'LINK OK':state==='stale'?'НЕТ ТЕЛЕМЕТРИИ':'OFFLINE';
 }
@@ -274,34 +294,16 @@ function connect(){
   try{ if(client && connected) client.disconnect(); }catch(e){}
   const cid='helm-'+Math.random().toString(16).slice(2,8);
   client=new Paho.MQTT.Client(cfg.host, cfg.port, cfg.path, cid);
-
-  client.onConnectionLost=()=>{
-    connected=false; setLink('off');
-  };
+  client.onConnectionLost=()=>{ connected=false; setLink('off'); };
   client.onMessageArrived=(m)=>{
     if(m.destinationName===TOPIC().tlm){
-      try{
-        const d=JSON.parse(m.payloadString);
-        lastTlm=d; lastRx=Date.now();
-        updateTelemetry(d);
-      }catch(e){}
+      try{ const d=JSON.parse(m.payloadString); lastTlm=d; lastRx=Date.now(); updateTelemetry(d); }catch(e){}
     }
   };
-
   const opts={
-    useSSL:cfg.tls,
-    timeout:6,
-    keepAliveInterval:15,
-    cleanSession:true,
-    onSuccess:()=>{
-      connected=true; setLink('stale');
-      client.subscribe(TOPIC().tlm);
-      sheet.classList.add('hidden');
-    },
-    onFailure:(e)=>{
-      connected=false; setLink('off');
-      alert('Не удалось подключиться: '+(e.errorMessage||e));
-    }
+    useSSL:cfg.tls, timeout:6, keepAliveInterval:15, cleanSession:true,
+    onSuccess:()=>{ connected=true; setLink('stale'); client.subscribe(TOPIC().tlm); sheet.classList.add('hidden'); },
+    onFailure:(e)=>{ connected=false; setLink('off'); alert('Не удалось подключиться: '+(e.errorMessage||e)); }
   };
   if(cfg.user) opts.userName=cfg.user;
   if(cfg.pass) opts.password=cfg.pass;
@@ -312,7 +314,9 @@ function connect(){
 function publishCmd(){
   if(!connected) return;
   seq=(seq+1)%100000;
-  const payload=JSON.stringify({seq, t:Math.round(thr), s:Math.round(steer)});
+  // p: мощность помпы 0..100, либо 0 если выключена
+  const p = pumpOn ? Math.round(pumpPower) : 0;
+  const payload=JSON.stringify({seq, t:Math.round(thr), s:Math.round(steer), p});
   const msg=new Paho.MQTT.Message(payload);
   msg.destinationName=TOPIC().cmd;
   try{ client.send(msg); }catch(e){ connected=false; setLink('off'); }
@@ -322,14 +326,29 @@ setInterval(publishCmd, 200); // 5 раз в секунду — heartbeat
 /* ============ Аварийный стоп ============ */
 $('stop').addEventListener('click', ()=>{
   thr=0; steer=0; resetStick();
-  // тройная отправка нуля для надёжности
+  pumpOn=false; updatePumpUI();     // насос тоже глушим
   for(let i=0;i<3;i++) setTimeout(publishCmd, i*40);
+});
+
+/* ============ Помпа: вкл/выкл + мощность ============ */
+const pumpBtn=$('pumpBtn'), pumpSlider=$('pumpSlider');
+function updatePumpUI(){
+  pumpBtn.textContent = pumpOn ? 'Стоп' : 'Пуск';
+  pumpBtn.classList.toggle('on', pumpOn);
+  $('pumpDot').classList.toggle('on', pumpOn);
+  $('pumpVal').textContent = pumpPower;
+  $('pumpPctLbl').textContent = (pumpOn?pumpPower:0)+'%';
+  pumpSlider.style.setProperty('--fill', pumpPower+'%');
+}
+pumpBtn.onclick=()=>{ pumpOn=!pumpOn; updatePumpUI(); publishCmd(); };
+pumpSlider.addEventListener('input', ()=>{
+  pumpPower=parseInt(pumpSlider.value);
+  updatePumpUI();
 });
 
 /* ============ Джойстик ============ */
 const pad=$('pad'), pc=$('padCanvas'), pctx=pc.getContext('2d');
-let stickX=0, stickY=0; // -1..1
-let dragging=false;
+let stickX=0, stickY=0, dragging=false;
 
 function sizePad(){
   const r=pad.getBoundingClientRect();
@@ -341,17 +360,13 @@ function drawPad(){
   const w=pc.width/devicePixelRatio, h=pc.height/devicePixelRatio;
   const cx=w/2, cy=h/2, R=Math.min(w,h)/2-14;
   pctx.clearRect(0,0,w,h);
-  // crosshair rings
   pctx.strokeStyle='#1a2636'; pctx.lineWidth=1;
   for(let i=1;i<=3;i++){pctx.beginPath();pctx.arc(cx,cy,R*i/3,0,7);pctx.stroke();}
   pctx.beginPath();pctx.moveTo(cx-R,cy);pctx.lineTo(cx+R,cy);
   pctx.moveTo(cx,cy-R);pctx.lineTo(cx,cy+R);pctx.stroke();
-  // knob
   const kx=cx+stickX*R, ky=cy+stickY*R;
-  // trail line
   pctx.strokeStyle='rgba(0,229,176,.35)';pctx.lineWidth=3;
   pctx.beginPath();pctx.moveTo(cx,cy);pctx.lineTo(kx,ky);pctx.stroke();
-  // knob glow
   const g=pctx.createRadialGradient(kx,ky,2,kx,ky,30);
   g.addColorStop(0,'rgba(0,229,176,.9)');g.addColorStop(1,'rgba(0,229,176,0)');
   pctx.fillStyle=g;pctx.beginPath();pctx.arc(kx,ky,30,0,7);pctx.fill();
@@ -360,14 +375,12 @@ function drawPad(){
 }
 function setStickFromEvent(e){
   const r=pad.getBoundingClientRect();
-  const px=(e.clientX-r.left)/r.width*2-1;
-  const py=(e.clientY-r.top)/r.height*2-1;
-  let dx=px, dy=py;
+  let dx=(e.clientX-r.left)/r.width*2-1;
+  let dy=(e.clientY-r.top)/r.height*2-1;
   const mag=Math.hypot(dx,dy);
   if(mag>1){dx/=mag;dy/=mag;}
   stickX=dx; stickY=dy;
-  steer = dx*100;        // вправо = +поворот
-  thr   = -dy*100;       // вверх = +тяга
+  steer=dx*100; thr=-dy*100;
   if(Math.abs(steer)<8) steer=0;
   if(Math.abs(thr)<8) thr=0;
   $('roThr').textContent=Math.round(thr);
@@ -382,7 +395,6 @@ function resetStick(){
   $('roThr').className='v';$('roSteer').className='v';
   drawPad();
 }
-function ptr(e){ return e.touches?e.touches[0]:e; }
 pad.addEventListener('pointerdown',e=>{dragging=true;setStickFromEvent(e);pad.setPointerCapture(e.pointerId);});
 pad.addEventListener('pointermove',e=>{if(dragging)setStickFromEvent(e);});
 pad.addEventListener('pointerup',e=>{dragging=false;resetStick();});
@@ -391,9 +403,14 @@ pad.addEventListener('pointercancel',e=>{dragging=false;resetStick();});
 /* ============ Телеметрия + карта ============ */
 function updateTelemetry(d){
   if(d.course!=null) $('tCourse').textContent=d.course;
-  if(d.batt!=null)   $('tBatt').textContent=d.batt;
   if(d.lat!=null)    $('tLat').textContent=(+d.lat).toFixed(5);
   if(d.lon!=null)    $('tLon').textContent=(+d.lon).toFixed(5);
+  // состояние помпы, как его подтверждает лодка
+  if(d.pump!=null){
+    const pv=Math.abs(+d.pump);
+    $('tPump').textContent = pv>0 ? pv+'%' : 'OFF';
+    $('tPump').style.color = pv>0 ? 'var(--aqua)' : 'var(--ink-dim)';
+  }
   if(d.lat!=null && d.lon!=null && (d.lat||d.lon)){
     const last=boatTrack[boatTrack.length-1];
     if(!last || last.lat!==+d.lat || last.lon!==+d.lon){
@@ -414,7 +431,6 @@ function sizeMap(){
 function drawMap(){
   const w=mc.width/devicePixelRatio, h=mc.height/devicePixelRatio;
   mctx.clearRect(0,0,w,h);
-  // grid
   mctx.strokeStyle='#15202e';mctx.lineWidth=1;
   for(let x=0;x<w;x+=28){mctx.beginPath();mctx.moveTo(x,0);mctx.lineTo(x,h);mctx.stroke();}
   for(let y=0;y<h;y+=28){mctx.beginPath();mctx.moveTo(0,y);mctx.lineTo(w,y);mctx.stroke();}
@@ -423,19 +439,15 @@ function drawMap(){
     mctx.fillText('ожидание GPS…', w/2, h/2);
     return;
   }
-  // bounds
   let lats=boatTrack.map(p=>p.lat), lons=boatTrack.map(p=>p.lon);
   let minLa=Math.min(...lats),maxLa=Math.max(...lats);
   let minLo=Math.min(...lons),maxLo=Math.max(...lons);
-  const padg=0.0003;
-  minLa-=padg;maxLa+=padg;minLo-=padg;maxLo+=padg;
+  const padg=0.0003; minLa-=padg;maxLa+=padg;minLo-=padg;maxLo+=padg;
   const sx=v=>(v-minLo)/(maxLo-minLo||1)*(w-40)+20;
   const sy=v=>h-((v-minLa)/(maxLa-minLa||1)*(h-40)+20);
-  // track
   mctx.strokeStyle='rgba(0,229,176,.5)';mctx.lineWidth=2;mctx.beginPath();
   boatTrack.forEach((p,i)=>{const X=sx(p.lon),Y=sy(p.lat);i?mctx.lineTo(X,Y):mctx.moveTo(X,Y);});
   mctx.stroke();
-  // boat
   const b=boatTrack[boatTrack.length-1];
   const bx=sx(b.lon),by=sy(b.lat);
   const course=(lastTlm&&lastTlm.course!=null)?lastTlm.course:0;
@@ -451,14 +463,13 @@ setInterval(()=>{
   if(!connected){ setLink('off'); return; }
   const age=Date.now()-lastRx;
   if(lastRx===0){ setLink('stale'); $('mapAge').textContent='нет данных'; return; }
-  if(age>6000){ setLink('stale'); }
-  else setLink('live');
+  if(age>6000){ setLink('stale'); } else setLink('live');
   $('mapAge').textContent = age<2000?'актуально':Math.round(age/1000)+' с назад';
 }, 500);
 
 /* ============ Init ============ */
 window.addEventListener('resize',()=>{sizePad();sizeMap();});
-sizePad(); sizeMap(); refreshHints(); setLink('off'); drawPad();
+sizePad(); sizeMap(); refreshHints(); setLink('off'); drawPad(); updatePumpUI();
 </script>
 </body>
 </html>
