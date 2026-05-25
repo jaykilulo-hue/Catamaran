@@ -418,27 +418,35 @@ function resetStick(){
   drawPad();
 }
 
-/* --- Pointer events (десктоп / часть мобильных) --- */
-pad.addEventListener('pointerdown',e=>{
-  dragging=true; setStickFromEvent(e);
-  try{ pad.setPointerCapture(e.pointerId); }catch(_){}
-  e.preventDefault();
-}, {passive:false});
-pad.addEventListener('pointermove',e=>{
-  if(dragging){ setStickFromEvent(e); e.preventDefault(); }
-}, {passive:false});
-pad.addEventListener('pointerup',e=>{ dragging=false; resetStick(); });
-pad.addEventListener('pointercancel',e=>{ dragging=false; resetStick(); });
+/* Используем ЛИБО touch, ЛИБО pointer/mouse — но НЕ оба сразу.
+   Иначе на мобильных Chrome шлёт дубли событий: touchmove ставит значение,
+   а параллельный pointerup/touchend тут же вызывает resetStick() и обнуляет.
+   Из-за этого индикатор мигает ненулевым, а в отправку уходит 0. */
+const HAS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
-/* --- Touch events (надёжный путь для мобильных браузеров) --- */
-pad.addEventListener('touchstart',e=>{
-  dragging=true; setStickFromEvent(e); e.preventDefault();
-}, {passive:false});
-pad.addEventListener('touchmove',e=>{
-  if(dragging){ setStickFromEvent(e); e.preventDefault(); }
-}, {passive:false});
-pad.addEventListener('touchend',e=>{ dragging=false; resetStick(); e.preventDefault(); }, {passive:false});
-pad.addEventListener('touchcancel',e=>{ dragging=false; resetStick(); }, {passive:false});
+if(HAS_TOUCH){
+  /* --- Только TOUCH (мобильные) --- */
+  pad.addEventListener('touchstart',e=>{
+    dragging=true; setStickFromEvent(e); e.preventDefault();
+  }, {passive:false});
+  pad.addEventListener('touchmove',e=>{
+    if(dragging){ setStickFromEvent(e); e.preventDefault(); }
+  }, {passive:false});
+  pad.addEventListener('touchend',e=>{ dragging=false; resetStick(); e.preventDefault(); }, {passive:false});
+  pad.addEventListener('touchcancel',e=>{ dragging=false; resetStick(); }, {passive:false});
+} else {
+  /* --- Только POINTER/MOUSE (десктоп) --- */
+  pad.addEventListener('pointerdown',e=>{
+    dragging=true; setStickFromEvent(e);
+    try{ pad.setPointerCapture(e.pointerId); }catch(_){}
+    e.preventDefault();
+  }, {passive:false});
+  pad.addEventListener('pointermove',e=>{
+    if(dragging){ setStickFromEvent(e); e.preventDefault(); }
+  }, {passive:false});
+  pad.addEventListener('pointerup',e=>{ dragging=false; resetStick(); });
+  pad.addEventListener('pointercancel',e=>{ dragging=false; resetStick(); });
+}
 
 /* ============ Телеметрия + карта ============ */
 function updateTelemetry(d){
@@ -499,8 +507,8 @@ function drawMap(){
 
 /* ============ Контроль живости связи + отладка джойстика ============ */
 setInterval(()=>{
-  // мини-индикатор отладки внизу слева: показывает, что джойстик реально шлёт
-  dbg.textContent='T:'+Math.round(thr)+' S:'+Math.round(steer)+(connected?' ●':' ○');
+  // мини-индикатор: версия v3, режим ввода (TOUCH/PTR), текущие T/S, статус связи
+  dbg.textContent='v3 '+(HAS_TOUCH?'TOUCH':'PTR')+' T:'+Math.round(thr)+' S:'+Math.round(steer)+(connected?' ●':' ○');
   if(!connected){ setLink('off'); return; }
   const age=Date.now()-lastRx;
   if(lastRx===0){ setLink('stale'); $('mapAge').textContent='нет данных'; return; }
