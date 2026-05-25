@@ -35,6 +35,7 @@
     overflow:hidden;
     display:flex;flex-direction:column;
     user-select:none;
+    -webkit-user-select:none;
   }
   body::before{
     content:"";position:fixed;inset:0;pointer-events:none;opacity:.4;
@@ -80,12 +81,14 @@
   /* Joystick */
   .helm{flex:1;display:flex;flex-direction:column;align-items:center}
   #pad{
-    touch-action:none;width:100%;max-width:340px;aspect-ratio:1;
+    touch-action:none;            /* критично: браузер НЕ перехватывает жесты в зоне джойстика */
+    -ms-touch-action:none;
+    width:100%;max-width:340px;aspect-ratio:1;
     border-radius:18px;background:radial-gradient(circle at 50% 50%, #0e1622 0%, #0a121c 70%);
     border:1px solid var(--line);position:relative;overflow:hidden;
   }
-  #pad canvas{position:absolute;inset:0;width:100%;height:100%}
-  .pad-hint{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:9px;letter-spacing:2px;color:var(--ink-dim);text-transform:uppercase}
+  #pad canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;pointer-events:none}
+  .pad-hint{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:9px;letter-spacing:2px;color:var(--ink-dim);text-transform:uppercase;pointer-events:none}
 
   .readout{display:flex;gap:12px;width:100%;max-width:340px;margin-top:10px}
   .readout .ro{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
@@ -103,6 +106,7 @@
     flex-shrink:0;width:104px;padding:14px 0;border:1px solid var(--aqua-dim);border-radius:11px;cursor:pointer;
     background:linear-gradient(180deg,#0d2233,#0a1a28);color:var(--aqua);
     font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:2px;text-transform:uppercase;transition:.15s;
+    touch-action:manipulation;
   }
   .pump-toggle.on{background:linear-gradient(180deg,var(--aqua),var(--aqua-dim));color:#04121f;box-shadow:0 0 22px rgba(61,168,255,.4)}
   .pump-toggle:active{transform:scale(.98)}
@@ -133,6 +137,7 @@
     width:100%;padding:18px;border:none;border-radius:14px;cursor:pointer;
     background:linear-gradient(180deg,#2a0e16,#1a0a10);color:var(--danger);border:1px solid #3a1420;
     font-family:var(--mono);font-size:18px;font-weight:500;letter-spacing:4px;text-transform:uppercase;transition:.12s;
+    touch-action:manipulation;
   }
   #stop:active{background:var(--danger);color:#fff;transform:scale(.99);box-shadow:0 0 30px rgba(255,59,92,.5)}
 
@@ -147,16 +152,17 @@
   .field input{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px;color:var(--ink);font-family:var(--mono);font-size:14px}
   .field input:focus{outline:none;border-color:var(--accent-dim)}
   .two{display:flex;gap:10px}.two .field{flex:1}
-  .btn{width:100%;margin-top:6px;padding:14px;border:none;border-radius:11px;cursor:pointer;background:linear-gradient(180deg,var(--accent),var(--accent-dim));color:#04120e;font-family:var(--mono);font-weight:500;font-size:14px;letter-spacing:2px;text-transform:uppercase}
+  .btn{width:100%;margin-top:6px;padding:14px;border:none;border-radius:11px;cursor:pointer;background:linear-gradient(180deg,var(--accent),var(--accent-dim));color:#04120e;font-family:var(--mono);font-weight:500;font-size:14px;letter-spacing:2px;text-transform:uppercase;touch-action:manipulation}
   .btn:active{transform:scale(.99)}
   .hint{font-size:10px;color:var(--ink-dim);line-height:1.5;margin-top:10px}
-  .gear{background:none;border:1px solid var(--line);color:var(--ink-dim);border-radius:8px;padding:4px 9px;font-family:var(--mono);font-size:10px;letter-spacing:1px;cursor:pointer}
+  .gear{background:none;border:1px solid var(--line);color:var(--ink-dim);border-radius:8px;padding:4px 9px;font-family:var(--mono);font-size:10px;letter-spacing:1px;cursor:pointer;touch-action:manipulation}
+  .dbg{position:fixed;left:6px;bottom:6px;font-size:9px;color:var(--ink-dim);z-index:5;pointer-events:none}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">⛵ CATAMARAN <b>HELM</b></div>
+  <div class="logo">CATAMARAN <b>HELM</b></div>
   <div class="link-state">
     <span id="linkText">OFFLINE</span>
     <span class="led" id="led"></span>
@@ -213,29 +219,31 @@
     </div>
   </div>
 
-  <button id="stop">⏹ СТОП — МОТОРЫ И НАСОС</button>
+  <button id="stop">СТОП — МОТОРЫ И НАСОС</button>
 </main>
+
+<div class="dbg" id="dbg"></div>
 
 <!-- Connection config sheet -->
 <div class="sheet-bg" id="sheet">
   <div class="sheet">
     <h2>Подключение к брокеру</h2>
-    <div class="field"><label>Хост брокера (WebSocket)</label><input id="cHost" value="broker.hivemq.com"></div>
+    <div class="field"><label>Хост брокера (WebSocket)</label><input id="cHost" value="b35b2642727348a5857d5427bc0c763c.s1.eu.hivemq.cloud"></div>
     <div class="two">
-      <div class="field"><label>Порт WS</label><input id="cPort" value="8000" inputmode="numeric"></div>
+      <div class="field"><label>Порт WS</label><input id="cPort" value="8884" inputmode="numeric"></div>
       <div class="field"><label>Путь</label><input id="cPath" value="/mqtt"></div>
     </div>
-    <div class="field"><label>TLS (wss) — нужно для HiveMQ Cloud / https</label><input id="cTls" value="нет — ws" readonly style="cursor:pointer"></div>
+    <div class="field"><label>TLS (wss) — нужно для HiveMQ Cloud / https</label><input id="cTls" value="да — wss" readonly style="cursor:pointer"></div>
     <div class="field"><label>Префикс топиков (секретный)</label><input id="cTopic" value="catamaran/9f3a"></div>
     <div class="two">
-      <div class="field"><label>Логин</label><input id="cUser" placeholder="—"></div>
+      <div class="field"><label>Логин</label><input id="cUser" value="Joystick" placeholder="—"></div>
       <div class="field"><label>Пароль</label><input id="cPass" type="password" placeholder="—"></div>
     </div>
     <button class="btn" id="connectBtn">Подключиться</button>
     <div class="hint">
       Команды → <code id="hintCmd">catamaran/9f3a/command</code><br>
       Телеметрия ← <code id="hintTlm">catamaran/9f3a/telemetry</code><br>
-      HiveMQ Cloud: хост вида xxx.s1.eu.hivemq.cloud, TLS = да, порт 8884, путь /mqtt, логин-пароль из Access Management. Страница пульта должна быть открыта по https.
+      HiveMQ Cloud: хост xxx.s1.eu.hivemq.cloud, TLS = да, порт 8884, путь /mqtt, логин-пароль из Access Management. Страница пульта должна быть открыта по https.
     </div>
   </div>
 </div>
@@ -243,8 +251,8 @@
 <script>
 /* ============ Конфиг и состояние ============ */
 const cfg = {
-  host:'broker.hivemq.com', port:8000, path:'/mqtt', tls:false,
-  topicBase:'catamaran/9f3a', user:'', pass:''
+  host:'b35b2642727348a5857d5427bc0c763c.s1.eu.hivemq.cloud', port:8884, path:'/mqtt', tls:true,
+  topicBase:'catamaran/9f3a', user:'Joystick', pass:''
 };
 let client=null, connected=false;
 let thr=0, steer=0;          // -100..100
@@ -258,6 +266,7 @@ const TOPIC = ()=>({cmd:cfg.topicBase+'/command', tlm:cfg.topicBase+'/telemetry'
 const $=id=>document.getElementById(id);
 const led=$('led'), linkText=$('linkText');
 const sheet=$('sheet');
+const dbg=$('dbg');
 
 $('gearBtn').onclick=()=>sheet.classList.remove('hidden');
 
@@ -277,7 +286,7 @@ $('cTopic').addEventListener('input',refreshHints);
 /* ============ Подключение MQTT ============ */
 $('connectBtn').onclick=()=>{
   cfg.host=$('cHost').value.trim();
-  cfg.port=parseInt($('cPort').value)||8000;
+  cfg.port=parseInt($('cPort').value)||8884;
   cfg.path=$('cPath').value.trim()||'/mqtt';
   cfg.topicBase=$('cTopic').value.trim()||'catamaran/9f3a';
   cfg.user=$('cUser').value.trim();
@@ -314,7 +323,6 @@ function connect(){
 function publishCmd(){
   if(!connected) return;
   seq=(seq+1)%100000;
-  // p: мощность помпы 0..100, либо 0 если выключена
   const p = pumpOn ? Math.round(pumpPower) : 0;
   const payload=JSON.stringify({seq, t:Math.round(thr), s:Math.round(steer), p});
   const msg=new Paho.MQTT.Message(payload);
@@ -326,7 +334,7 @@ setInterval(publishCmd, 200); // 5 раз в секунду — heartbeat
 /* ============ Аварийный стоп ============ */
 $('stop').addEventListener('click', ()=>{
   thr=0; steer=0; resetStick();
-  pumpOn=false; updatePumpUI();     // насос тоже глушим
+  pumpOn=false; updatePumpUI();
   for(let i=0;i<3;i++) setTimeout(publishCmd, i*40);
 });
 
@@ -347,6 +355,9 @@ pumpSlider.addEventListener('input', ()=>{
 });
 
 /* ============ Джойстик ============ */
+/* Работает И на pointer events (desktop), И на touch events (мобильные).
+   touch-action:none на #pad не даёт браузеру перехватывать жесты.
+   getClientCoords достаёт координаты и из mouse/pointer, и из touch. */
 const pad=$('pad'), pc=$('padCanvas'), pctx=pc.getContext('2d');
 let stickX=0, stickY=0, dragging=false;
 
@@ -373,10 +384,19 @@ function drawPad(){
   pctx.fillStyle='#00e5b0';pctx.beginPath();pctx.arc(kx,ky,13,0,7);pctx.fill();
   pctx.fillStyle='#04120e';pctx.beginPath();pctx.arc(kx,ky,5,0,7);pctx.fill();
 }
+
+/* Достаёт clientX/clientY из любого типа события (mouse, pointer, touch) */
+function getClientCoords(e){
+  if(e.touches && e.touches.length){ return {x:e.touches[0].clientX, y:e.touches[0].clientY}; }
+  if(e.changedTouches && e.changedTouches.length){ return {x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY}; }
+  return {x:e.clientX, y:e.clientY};
+}
+
 function setStickFromEvent(e){
   const r=pad.getBoundingClientRect();
-  let dx=(e.clientX-r.left)/r.width*2-1;
-  let dy=(e.clientY-r.top)/r.height*2-1;
+  const c=getClientCoords(e);
+  let dx=(c.x-r.left)/r.width*2-1;
+  let dy=(c.y-r.top)/r.height*2-1;
   const mag=Math.hypot(dx,dy);
   if(mag>1){dx/=mag;dy/=mag;}
   stickX=dx; stickY=dy;
@@ -395,17 +415,34 @@ function resetStick(){
   $('roThr').className='v';$('roSteer').className='v';
   drawPad();
 }
-pad.addEventListener('pointerdown',e=>{dragging=true;setStickFromEvent(e);pad.setPointerCapture(e.pointerId);});
-pad.addEventListener('pointermove',e=>{if(dragging)setStickFromEvent(e);});
-pad.addEventListener('pointerup',e=>{dragging=false;resetStick();});
-pad.addEventListener('pointercancel',e=>{dragging=false;resetStick();});
+
+/* --- Pointer events (десктоп / часть мобильных) --- */
+pad.addEventListener('pointerdown',e=>{
+  dragging=true; setStickFromEvent(e);
+  try{ pad.setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+}, {passive:false});
+pad.addEventListener('pointermove',e=>{
+  if(dragging){ setStickFromEvent(e); e.preventDefault(); }
+}, {passive:false});
+pad.addEventListener('pointerup',e=>{ dragging=false; resetStick(); });
+pad.addEventListener('pointercancel',e=>{ dragging=false; resetStick(); });
+
+/* --- Touch events (надёжный путь для мобильных браузеров) --- */
+pad.addEventListener('touchstart',e=>{
+  dragging=true; setStickFromEvent(e); e.preventDefault();
+}, {passive:false});
+pad.addEventListener('touchmove',e=>{
+  if(dragging){ setStickFromEvent(e); e.preventDefault(); }
+}, {passive:false});
+pad.addEventListener('touchend',e=>{ dragging=false; resetStick(); e.preventDefault(); }, {passive:false});
+pad.addEventListener('touchcancel',e=>{ dragging=false; resetStick(); }, {passive:false});
 
 /* ============ Телеметрия + карта ============ */
 function updateTelemetry(d){
   if(d.course!=null) $('tCourse').textContent=d.course;
   if(d.lat!=null)    $('tLat').textContent=(+d.lat).toFixed(5);
   if(d.lon!=null)    $('tLon').textContent=(+d.lon).toFixed(5);
-  // состояние помпы, как его подтверждает лодка
   if(d.pump!=null){
     const pv=Math.abs(+d.pump);
     $('tPump').textContent = pv>0 ? pv+'%' : 'OFF';
@@ -458,14 +495,16 @@ function drawMap(){
   $('mapCoords').textContent=`${b.lat.toFixed(5)}, ${b.lon.toFixed(5)}`;
 }
 
-/* ============ Контроль живости связи ============ */
+/* ============ Контроль живости связи + отладка джойстика ============ */
 setInterval(()=>{
+  // мини-индикатор отладки внизу слева: показывает, что джойстик реально шлёт
+  dbg.textContent='T:'+Math.round(thr)+' S:'+Math.round(steer)+(connected?' ●':' ○');
   if(!connected){ setLink('off'); return; }
   const age=Date.now()-lastRx;
   if(lastRx===0){ setLink('stale'); $('mapAge').textContent='нет данных'; return; }
   if(age>6000){ setLink('stale'); } else setLink('live');
   $('mapAge').textContent = age<2000?'актуально':Math.round(age/1000)+' с назад';
-}, 500);
+}, 300);
 
 /* ============ Init ============ */
 window.addEventListener('resize',()=>{sizePad();sizeMap();});
