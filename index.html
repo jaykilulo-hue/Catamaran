@@ -305,7 +305,11 @@ function connect(){
   try{ if(client && connected) client.disconnect(); }catch(e){}
   const cid='helm-'+Math.random().toString(16).slice(2,8);
   client=new Paho.MQTT.Client(cfg.host, cfg.port, cfg.path, cid);
-  client.onConnectionLost=()=>{ connected=false; setLink('off'); };
+  client.onConnectionLost=(resp)=>{
+    connected=false; setLink('off');
+    // АВТО-ПЕРЕПОДКЛЮЧЕНИЕ: без него пульт молча замолкает после обрыва
+    if(cfg.pass!==undefined) setTimeout(connect, 1500);
+  };
   client.onMessageArrived=(m)=>{
     if(m.destinationName===TOPIC().tlm){
       try{ const d=JSON.parse(m.payloadString); lastTlm=d; lastRx=Date.now(); updateTelemetry(d); }catch(e){}
@@ -314,14 +318,15 @@ function connect(){
   const opts={
     useSSL:cfg.tls, timeout:6, keepAliveInterval:15, cleanSession:true,
     onSuccess:()=>{ connected=true; setLink('stale'); client.subscribe(TOPIC().tlm); sheet.classList.add('hidden'); },
-    onFailure:(e)=>{ connected=false; setLink('off'); alert('Не удалось подключиться: '+(e.errorMessage||e)); }
+    onFailure:(e)=>{ connected=false; setLink('off'); setTimeout(connect, 2000); }
   };
   if(cfg.user) opts.userName=cfg.user;
   if(cfg.pass) opts.password=cfg.pass;
-  client.connect(opts);
+  try{ client.connect(opts); }catch(e){ setTimeout(connect, 2000); }
 }
 
 /* ============ Отправка команд (heartbeat 5 Гц) ============ */
+let sentCount=0;   // сколько команд реально отправлено (для отладки)
 function publishCmd(){
   if(!connected) return;
   seq=(seq+1)%100000;
@@ -329,7 +334,7 @@ function publishCmd(){
   const payload=JSON.stringify({seq, t:Math.round(thr), s:Math.round(steer), p});
   const msg=new Paho.MQTT.Message(payload);
   msg.destinationName=TOPIC().cmd;
-  try{ client.send(msg); }catch(e){ connected=false; setLink('off'); }
+  try{ client.send(msg); sentCount++; }catch(e){ connected=false; setLink('off'); }
 }
 setInterval(publishCmd, 200); // 5 раз в секунду — heartbeat
 
@@ -507,8 +512,8 @@ function drawMap(){
 
 /* ============ Контроль живости связи + отладка джойстика ============ */
 setInterval(()=>{
-  // мини-индикатор: версия v3, режим ввода (TOUCH/PTR), текущие T/S, статус связи
-  dbg.textContent='v3 '+(HAS_TOUCH?'TOUCH':'PTR')+' T:'+Math.round(thr)+' S:'+Math.round(steer)+(connected?' ●':' ○');
+  // v4: режим ввода, T/S, статус связи, счётчик отправленных команд
+  dbg.textContent='v4 '+(HAS_TOUCH?'TCH':'PTR')+' T:'+Math.round(thr)+' S:'+Math.round(steer)+(connected?' ОНЛАЙН':' ОФФ')+' tx:'+sentCount;
   if(!connected){ setLink('off'); return; }
   const age=Date.now()-lastRx;
   if(lastRx===0){ setLink('stale'); $('mapAge').textContent='нет данных'; return; }
