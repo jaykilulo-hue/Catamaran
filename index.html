@@ -392,12 +392,15 @@ function publishCmd(){
   const payload=JSON.stringify({seq, t:Math.round(thr), s:Math.round(steer), p});
   const msg=new Paho.MQTT.Message(payload);
   msg.destinationName=TOPIC().cmd;
+  msg.qos = 0;  // ЯВНО укажите QoS 0
+  msg.retained = false;
   try{
     client.send(msg);
     sentCount++;
-    lastTxOk=Date.now();            // отметка успешной публикации
+    lastTxOk=Date.now();
+    console.log('TX seq='+seq, 't='+Math.round(thr), 's='+Math.round(steer)); // ЛОГ
   }catch(e){
-    // публикация не прошла -> соединение мертво, инициируем переподключение
+    console.error('TX FAIL:', e);  // ЛОГ ошибки
     connected=false; setLink('off');
     scheduleReconnect(1000);
   }
