@@ -1,9 +1,21 @@
 <!DOCTYPE html>
+<!-- ============================================================
+     CATAMARAN HELM — PATCH 4
+     Изменения относительно v4:
+       - метка PATCH 4 в заголовке, в плашке отладки и в title
+       - Wake Lock: экран не гаснет, мобильный браузер не «душит» вкладку
+       - возобновление при visibilitychange: при возврате на вкладку
+         форсируем переподключение, если связь умерла в фоне
+       - heartbeat теперь сам перезапускает соединение, если телефон
+         давно не может опубликовать команду (watchdog на стороне пульта)
+       - надёжный onConnectionLost + единый таймер переподключения
+         (без гонки нескольких setTimeout(connect))
+     ============================================================ -->
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Catamaran Helm</title>
+<title>Catamaran Helm · PATCH 4</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 <style>
   :root{
@@ -54,6 +66,8 @@
   }
   .logo{font-weight:500;letter-spacing:3px;font-size:13px;text-transform:uppercase;color:var(--ink)}
   .logo b{color:var(--accent);font-weight:500}
+  .ver{font-size:9px;letter-spacing:2px;color:var(--warn);border:1px solid var(--warn);
+       border-radius:6px;padding:2px 6px;margin-left:8px}
   .link-state{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px}
   .led{width:9px;height:9px;border-radius:50%;background:var(--danger);box-shadow:0 0 8px var(--danger);transition:.2s}
   .led.ok{background:var(--ok);box-shadow:0 0 10px var(--ok)}
@@ -164,7 +178,7 @@
 <body>
 
 <header>
-  <div class="logo">CATAMARAN <b>HELM</b></div>
+  <div class="logo">CATAMARAN <b>HELM</b><span class="ver">PATCH 4</span></div>
   <div class="link-state">
     <span id="linkText">OFFLINE</span>
     <span class="led" id="led"></span>
@@ -229,7 +243,7 @@
 <!-- Connection config sheet -->
 <div class="sheet-bg" id="sheet">
   <div class="sheet">
-    <h2>Подключение к брокеру</h2>
+    <h2>Подключение к брокеру · PATCH 4</h2>
     <div class="field"><label>Хост брокера (WebSocket)</label><input id="cHost" value="b35b2642727348a5857d5427bc0c763c.s1.eu.hivemq.cloud"></div>
     <div class="two">
       <div class="field"><label>Порт WS</label><input id="cPort" value="8884" inputmode="numeric"></div>
@@ -251,16 +265,23 @@
 </div>
 
 <script>
+/* ============ ВЕРСИЯ ============ */
+const PATCH = 'PATCH 4';
+console.log('Catamaran Helm —', PATCH);
+
 /* ============ Конфиг и состояние ============ */
 const cfg = {
   host:'b35b2642727348a5857d5427bc0c763c.s1.eu.hivemq.cloud', port:8884, path:'/mqtt', tls:true,
   topicBase:'catamaran/9f3a', user:'Joystick', pass:''
 };
 let client=null, connected=false;
+let connecting=false;        // идёт попытка подключения — не запускаем вторую
+let reconnectTimer=null;     // единый таймер переподключения (без гонки)
 let thr=0, steer=0;          // -100..100
 let pumpOn=false, pumpPower=50;   // помпа: вкл/выкл + мощность 0..100
 let seq=0;
 let lastRx=0;
+let lastTxOk=0;              // когда в последний раз УСПЕШНО опубликовали команду
 let boatTrack=[];
 let lastTlm=null;
 
@@ -285,6 +306,20 @@ function refreshHints(){
 }
 $('cTopic').addEventListener('input',refreshHints);
 
+/* ============ Wake Lock — экран не гаснет, вкладку не "усыпляют" ============ */
+/* Главная причина "то LINK ON, то НЕТ ТЕЛЕМЕТРИИ": мобильный браузер душит
+   фоновую вкладку — таймер heartbeat замирает, MQTT-пинги не уходят, брокер
+   рвёт сессию. Wake Lock держит экран активным, пока открыт пульт. */
+let wakeLock=null;
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', ()=>{ wakeLock=null; });
+    }
+  }catch(e){ wakeLock=null; }
+}
+
 /* ============ Подключение MQTT ============ */
 $('connectBtn').onclick=()=>{
   cfg.host=$('cHost').value.trim();
@@ -293,6 +328,7 @@ $('connectBtn').onclick=()=>{
   cfg.topicBase=$('cTopic').value.trim()||'catamaran/9f3a';
   cfg.user=$('cUser').value.trim();
   cfg.pass=$('cPass').value;
+  requestWakeLock();        // просим Wake Lock по жесту пользователя (надёжнее)
   connect();
 };
 
@@ -301,14 +337,26 @@ function setLink(state){
   linkText.textContent = state==='live'?'LINK OK':state==='stale'?'НЕТ ТЕЛЕМЕТРИИ':'OFFLINE';
 }
 
+/* Запланировать переподключение через ОДИН таймер. Повторные вызовы не
+   плодят параллельные setTimeout(connect) — иначе на телефоне получалась
+   гонка нескольких клиентов. */
+function scheduleReconnect(delay){
+  if(reconnectTimer) return;        // уже запланировано
+  reconnectTimer=setTimeout(()=>{ reconnectTimer=null; connect(); }, delay||1500);
+}
+
 function connect(){
+  if(connecting) return;            // уже подключаемся — не дублируем
+  connecting=true;
+  if(reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; }
   try{ if(client && connected) client.disconnect(); }catch(e){}
-  const cid='helm-'+Math.random().toString(16).slice(2,8);
+  connected=false;
+  const cid='helm-'+Math.random().toString(16).slice(2,10);  // уникальный client_id
   client=new Paho.MQTT.Client(cfg.host, cfg.port, cfg.path, cid);
+
   client.onConnectionLost=(resp)=>{
-    connected=false; setLink('off');
-    // АВТО-ПЕРЕПОДКЛЮЧЕНИЕ: без него пульт молча замолкает после обрыва
-    if(cfg.pass!==undefined) setTimeout(connect, 1500);
+    connected=false; connecting=false; setLink('off');
+    scheduleReconnect(1500);        // авто-переподключение через единый таймер
   };
   client.onMessageArrived=(m)=>{
     if(m.destinationName===TOPIC().tlm){
@@ -317,24 +365,42 @@ function connect(){
   };
   const opts={
     useSSL:cfg.tls, timeout:6, keepAliveInterval:15, cleanSession:true,
-    onSuccess:()=>{ connected=true; setLink('stale'); client.subscribe(TOPIC().tlm); sheet.classList.add('hidden'); },
-    onFailure:(e)=>{ connected=false; setLink('off'); setTimeout(connect, 2000); }
+    onSuccess:()=>{
+      connected=true; connecting=false;
+      lastTxOk=Date.now();          // считаем связь свежей с момента коннекта
+      setLink('stale');
+      try{ client.subscribe(TOPIC().tlm); }catch(e){}
+      sheet.classList.add('hidden');
+    },
+    onFailure:(e)=>{
+      connected=false; connecting=false; setLink('off');
+      scheduleReconnect(2000);
+    }
   };
   if(cfg.user) opts.userName=cfg.user;
   if(cfg.pass) opts.password=cfg.pass;
-  try{ client.connect(opts); }catch(e){ setTimeout(connect, 2000); }
+  try{ client.connect(opts); }
+  catch(e){ connecting=false; scheduleReconnect(2000); }
 }
 
 /* ============ Отправка команд (heartbeat 5 Гц) ============ */
 let sentCount=0;   // сколько команд реально отправлено (для отладки)
 function publishCmd(){
-  if(!connected) return;
+  if(!connected || !client) return;
   seq=(seq+1)%100000;
   const p = pumpOn ? Math.round(pumpPower) : 0;
   const payload=JSON.stringify({seq, t:Math.round(thr), s:Math.round(steer), p});
   const msg=new Paho.MQTT.Message(payload);
   msg.destinationName=TOPIC().cmd;
-  try{ client.send(msg); sentCount++; }catch(e){ connected=false; setLink('off'); }
+  try{
+    client.send(msg);
+    sentCount++;
+    lastTxOk=Date.now();            // отметка успешной публикации
+  }catch(e){
+    // публикация не прошла -> соединение мертво, инициируем переподключение
+    connected=false; setLink('off');
+    scheduleReconnect(1000);
+  }
 }
 setInterval(publishCmd, 200); // 5 раз в секунду — heartbeat
 
@@ -425,8 +491,7 @@ function resetStick(){
 
 /* Используем ЛИБО touch, ЛИБО pointer/mouse — но НЕ оба сразу.
    Иначе на мобильных Chrome шлёт дубли событий: touchmove ставит значение,
-   а параллельный pointerup/touchend тут же вызывает resetStick() и обнуляет.
-   Из-за этого индикатор мигает ненулевым, а в отправку уходит 0. */
+   а параллельный pointerup/touchend тут же вызывает resetStick() и обнуляет. */
 const HAS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
 if(HAS_TOUCH){
@@ -510,11 +575,40 @@ function drawMap(){
   $('mapCoords').textContent=`${b.lat.toFixed(5)}, ${b.lon.toFixed(5)}`;
 }
 
-/* ============ Контроль живости связи + отладка джойстика ============ */
+/* ============ Возобновление при возврате на вкладку ============ */
+/* Когда телефон возвращается на вкладку (снова видима) — повторно просим
+   Wake Lock и, если связь умерла в фоне, форсируем переподключение. */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible'){
+    requestWakeLock();
+    if(!connected) scheduleReconnect(200);
+  }
+});
+
+/* ============ Контроль живости связи + ОТЛАДКА + watchdog пульта ============ */
 setInterval(()=>{
-  // v4: режим ввода, T/S, статус связи, счётчик отправленных команд
-  dbg.textContent='v4 '+(HAS_TOUCH?'TCH':'PTR')+' T:'+Math.round(thr)+' S:'+Math.round(steer)+(connected?' ОНЛАЙН':' ОФФ')+' tx:'+sentCount;
-  if(!connected){ setLink('off'); return; }
+  // PATCH 4: режим ввода, T/S, статус связи, счётчик отправленных, статус Wake Lock
+  const wl = wakeLock ? 'WL+' : 'WL-';
+  dbg.textContent=PATCH+' '+(HAS_TOUCH?'TCH':'PTR')+' '+wl+
+    ' T:'+Math.round(thr)+' S:'+Math.round(steer)+
+    (connected?' ОНЛАЙН':(connecting?' ПОДКЛ…':' ОФФ'))+' tx:'+sentCount;
+
+  if(!connected){
+    setLink('off');
+    if(!connecting) scheduleReconnect(1500);   // не дать пульту "молча умереть"
+    return;
+  }
+
+  // WATCHDOG ПУЛЬТА: подключены, но давно не было УСПЕШНОЙ публикации
+  // (соединение "подвисло"). Форсируем переподключение, пока ESP32 не ушёл
+  // в долгий FAILSAFE.
+  if(Date.now()-lastTxOk > 4000){
+    connected=false; setLink('off');
+    try{ if(client) client.disconnect(); }catch(e){}
+    scheduleReconnect(300);
+    return;
+  }
+
   const age=Date.now()-lastRx;
   if(lastRx===0){ setLink('stale'); $('mapAge').textContent='нет данных'; return; }
   if(age>6000){ setLink('stale'); } else setLink('live');
