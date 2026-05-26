@@ -405,7 +405,7 @@ function publishCmd(){
     scheduleReconnect(1000);
   }
 }
-setInterval(publishCmd, 200); // 5 раз в секунду — heartbeat
+setInterval(publishCmd, 500); // 2 Гц — оптимально для HiveMQ Free
 
 /* ============ Аварийный стоп ============ */
 $('stop').addEventListener('click', ()=>{
