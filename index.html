@@ -405,7 +405,7 @@ function publishCmd(){
     scheduleReconnect(1000);
   }
 }
-setInterval(publishCmd, 500); // 2 Гц — оптимально для HiveMQ Free
+setInterval(publishCmd, 2000); // 2 Гц — оптимально для HiveMQ Free
 
 /* ============ Аварийный стоп ============ */
 $('stop').addEventListener('click', ()=>{
